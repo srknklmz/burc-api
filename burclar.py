@@ -7,12 +7,10 @@ import datetime
 from io import BytesIO
 import urllib3
 import time
-import boto3  # ← R2 için eklendi
 urllib3.disable_warnings()
+import boto3
+from botocore.client import Config
 
-# -----------------------------------------------------
-#  Cloudflare R2 – S3 Client
-# -----------------------------------------------------
 R2_ACCESS_KEY = "b3be6f386ed30c55f201dd52bed49ce3"
 R2_SECRET_KEY = "66b0328150576a04aca10be192bd72b3e0c449895bf657ae94aae80ccaf6233db"
 R2_BUCKET = "burclar"
@@ -20,9 +18,11 @@ R2_ENDPOINT = "https://c316fd7fb9f1a40d8aa2578d27d579a2.r2.cloudflarestorage.com
 
 s3 = boto3.client(
     "s3",
+    region_name="auto",
     endpoint_url=R2_ENDPOINT,
     aws_access_key_id=R2_ACCESS_KEY,
     aws_secret_access_key=R2_SECRET_KEY,
+    config=Config(signature_version="s3v4")  
 )
 
 
@@ -38,6 +38,16 @@ def fetch_image(url):
         print("❌ Görsel indirilemedi:", url, e)
         return Image.new("RGB", (WIDTH, HEIGHT), (255, 255, 255))
 
+def upload_to_r2(filename):
+    file_path = f"{OUTPUT_DIR}/{filename}"
+
+    s3.upload_file(
+        file_path,
+        R2_BUCKET,
+        filename
+    )
+
+    return f"{R2_ENDPOINT}/{R2_BUCKET}/{filename}"
 
 # -----------------------------------------------------
 #  GENEL AYARLAR
