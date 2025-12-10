@@ -33,10 +33,10 @@ R2_ENDPOINT = "https://c316fd7fb9f1a40d8aa2578d27d579a2.r2.cloudflarestorage.com
 
 s3 = boto3.client(
     "s3",
-    endpoint_url=R2_ENDPOINT,
+    region_name="auto",
+    endpoint_url=f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
     aws_access_key_id=R2_ACCESS_KEY,
     aws_secret_access_key=R2_SECRET_KEY,
-    config=Config(signature_version="s3v4")
 )
 
 
@@ -53,10 +53,15 @@ def fetch_image(url):
         return Image.new("RGB", (WIDTH, HEIGHT), (255, 255, 255))
 
 def upload_to_r2(filename):
-    local_path = f"output/{filename}"
-    s3.upload_file(local_path, R2_BUCKET, filename)
+    file_path = f"output/{filename}"
 
-    return f"{R2_ENDPOINT}/{R2_BUCKET}/{filename}"
+    s3.upload_file(
+        Filename=file_path,
+        Bucket=R2_BUCKET,
+        Key=filename
+    )
+
+    return f"https://pub-f937c062aeba4e4a9fa8b23dbb4f0275.r2.dev/{filename}"
 
 # -----------------------------------------------------
 #  GENEL AYARLAR
