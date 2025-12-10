@@ -28,7 +28,7 @@ def fetch_image(url):
 # -----------------------------------------------------
 WIDTH = 1080
 HEIGHT = 1350
-FONT_PATH = "/Library/Fonts/Arial.ttf"
+FONT_PATH = "fonts/Arial.ttf"
 FONT_TITLE = 120
 FONT_BODY = 44
 
