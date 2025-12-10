@@ -10,6 +10,21 @@ import time
 urllib3.disable_warnings()
 import boto3
 from botocore.client import Config
+from threading import Thread
+
+@app.get("/generate-fast")
+def generate_fast():
+    """
+    n8n bu HTTP'yi çağıracak.
+    İşlem arkada çalışacak → n8n timeout olmaz.
+    """
+    def background_job():
+        create_cover()
+        create_pages()
+    t = Thread(target=background_job)
+    t.start()
+
+    return {"status": "started", "message": "Generation started in background"}
 
 R2_ACCESS_KEY = "b3be6f386ed30c55f201dd52bed49ce3"
 R2_SECRET_KEY = "66b0328150576a04aca10be192bd72b3e0c449895bf657ae94aae80ccaf6233db"
