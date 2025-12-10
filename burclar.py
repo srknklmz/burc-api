@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from PIL import Image, ImageDraw, ImageFont
@@ -8,7 +7,24 @@ import datetime
 from io import BytesIO
 import urllib3
 import time
+import boto3  # ← R2 için eklendi
 urllib3.disable_warnings()
+
+# -----------------------------------------------------
+#  Cloudflare R2 – S3 Client
+# -----------------------------------------------------
+R2_ACCESS_KEY = "b3be6f386ed30c55f201dd52bed49ce3"
+R2_SECRET_KEY = "66b0328150576a04aca10be192bd72b3e0c449895bf657ae94aae80ccaf6233db"
+R2_BUCKET = "burclar"
+R2_ENDPOINT = "https://c316fd7fb9f1a40d8aa2578d27d579a2.r2.cloudflarestorage.com"
+
+s3 = boto3.client(
+    "s3",
+    endpoint_url=R2_ENDPOINT,
+    aws_access_key_id=R2_ACCESS_KEY,
+    aws_secret_access_key=R2_SECRET_KEY,
+)
+
 
 # -----------------------------------------------------
 #  Cloudflare R2 Görsel İndirme
@@ -32,7 +48,7 @@ FONT_PATH = "fonts/Arial.ttf"
 FONT_TITLE = 120
 FONT_BODY = 44
 
-OUTPUT_DIR = "/Users/serkankalmaz/Desktop/output"
+OUTPUT_DIR = "output"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 BOTTOM_SAFE_MARGIN = 230   # Alt emoji alanı
@@ -86,7 +102,7 @@ def wrap_lines(draw, text, font, max_width):
 
 
 # -----------------------------------------------------
-#  BAŞLIK + METİNİ TAM ORTALI VE JUSTIFY YAZAN ANA FONKSİYON
+#  BAŞLIK + JUSTIFY METİN
 # -----------------------------------------------------
 def draw_justified_page(img, burc, text):
     draw = ImageDraw.Draw(img)
@@ -103,20 +119,16 @@ def draw_justified_page(img, burc, text):
 
     while True:
         font_body = ImageFont.truetype(FONT_PATH, body_size)
-
         lines = wrap_lines(draw, text, font_body, max_width)
 
-        # Başlık ölç
         tbox = draw.textbbox((0, 0), burc, font=font_title)
         title_h = tbox[3] - tbox[1]
 
-        # Gövde satır yüksekliği
         sample = draw.textbbox((0, 0), "Hg", font=font_body)
         line_h = sample[3] - sample[1]
 
         text_height = len(lines) * (line_h + spacing)
         title_gap = 2 * line_h
-
         block_height = title_h + title_gap + text_height
 
         center_y = bottom_limit / 2
@@ -124,45 +136,32 @@ def draw_justified_page(img, burc, text):
 
         if top_y < 80:
             top_y = 80
-
         if top_y + block_height <= bottom_limit or body_size <= 34:
             break
 
         body_size -= 2
 
-    # --- Başlık ---
     title_w = draw.textlength(burc, font=font_title)
     tx = (WIDTH - title_w) // 2
     ty = top_y
     draw.text((tx, ty), burc, font=font_title, fill="black")
 
-    # --- Metin ---
     y = ty + title_h + title_gap
-
     for idx, line in enumerate(lines):
         words = line.split()
         is_last = idx == len(lines) - 1
-
         if len(words) > 1 and not is_last:
-            # Justify yaz
             space_w = draw.textlength(" ", font=font_body)
             base = sum(draw.textlength(w, font=font_body) for w in words) + space_w * (len(words)-1)
             extra = max_width - base
             gaps = len(words)-1
-
             x = left_margin
-            add_space = extra / gaps if gaps > 0 else 0
-
+            add_space = extra / gaps
             for i, w in enumerate(words):
                 draw.text((x, y), w, font=font_body, fill="black")
-                w_w = draw.textlength(w, font=font_body)
-                if i < gaps:
-                    x += w_w + space_w + add_space
-                else:
-                    x += w_w
+                x += draw.textlength(w, font=font_body) + space_w + add_space
         else:
             draw.text((left_margin, y), line, font=font_body, fill="black")
-
         y += line_h + spacing
 
 
@@ -184,42 +183,25 @@ def groq_chat(prompt, temperature=0.4):
 
 
 def get_horoscope(burc):
-    """
-    1) İlk çağrıda günlük yorumu üretir.
-    2) İkinci çağrıda metni sessizce düzeltir (hiçbir açıklama eklemeden).
-    """
-
-    # --- 1) TASLAK YORUM ÜRETME ---
     draft_prompt = f"""
 Sen deneyimli bir astrologsun.
 
 Bugün için **{burc} burcu** adına,
 110–150 kelime arası, tek paragraf,
 profesyonel ve tamamen Türkçe bir günlük burç yorumu yaz.
-
-Kurallar:
-- Madde işareti yok.
-- Başlık ekleme.
-- Yalnızca paragrafı ver.
 """
     draft = groq_chat(draft_prompt, temperature=0.5).strip()
 
-    # --- 2) TEMİZ DÜZELTME ---
     clean_prompt = f"""
 Aşağıdaki metni yalnızca Türkçe imla ve akıcılık açısından düzelt.
-
-- Metnin anlamını değiştirme, uzunluğunu koru.
-- Başına "METİN" fln kelimesi ekleme.
 
 METİN:
 {draft}
 """
     final_text = groq_chat(clean_prompt, temperature=0.1).strip()
     time.sleep(1)
-    # Her ihtimale karşı baştaki/sondaki gereksiz tırnak veya """ temizliği
-    final_text = final_text.replace('"""', '').replace("“", "").replace("”", "").strip()
+    return final_text.replace('"""', '').replace("“", "").replace("”", "").strip()
 
-    return final_text
 
 # -----------------------------------------------------
 #  TARİH
@@ -243,17 +225,13 @@ TODAY_TR = get_turkish_today()
 # -----------------------------------------------------
 def create_cover():
     today = TODAY_TR
-
     img = fetch_image(IMAGE_MAP[1])
     draw = ImageDraw.Draw(img)
 
     title = "GÜNLÜK BURÇ YORUMLARI"
-
-    # Sağ/sol güvenli boşluk (taşmayı önler)
     safe_padding = 80
     max_width = WIDTH - safe_padding * 2
 
-    # Başlık fontunu genişliğe sığana kadar küçült
     size = 110
     while True:
         font_title = ImageFont.truetype(FONT_PATH, size)
@@ -262,52 +240,59 @@ def create_cover():
             break
         size -= 2
 
-    # Başlık konumu
     y_title = 140
     x_title = (WIDTH - w_title) // 2
 
-    # Gölge efektli başlık (istersen kaldırabilirim)
     for dx, dy in [(-1,0),(1,0),(0,-1),(0,1),(0,0)]:
         draw.text((x_title + dx, y_title + dy), title, font=font_title, fill="black")
 
-    # --- Tarih ---
     font_date = ImageFont.truetype(FONT_PATH, FONT_BODY)
     w_date = draw.textlength(today, font=font_date)
     x_date = (WIDTH - w_date) // 2
     y_date = y_title + 100
 
     draw.text((x_date, y_date), today, font=font_date, fill="black")
-
     img.save(f"{OUTPUT_DIR}/00_kapak.png")
+    upload_to_r2("00_kapak.png")
+
+
+# -----------------------------------------------------
+#  Cloudflare R2 Yükleme Fonksiyonu
+# -----------------------------------------------------
+def upload_to_r2(filename):
+    file_path = os.path.join(OUTPUT_DIR, filename)
+    s3.upload_file(file_path, R2_BUCKET, filename)
+    print("✓ Upload:", filename)
+
 
 # -----------------------------------------------------
 #  BURÇ SAYFALARI
 # -----------------------------------------------------
 def create_pages():
     for i, burc in enumerate(burc_listesi, start=1):
-
         img = fetch_image(IMAGE_MAP[i+1])
         yorum = get_horoscope(burc)
 
         draw_justified_page(img, burc, yorum)
 
-        # Sol alt köşe tarih
         draw = ImageDraw.Draw(img)
         font_date = ImageFont.truetype(FONT_PATH, 32)
         margin = 80
         y_date = HEIGHT - margin - 40
         draw.text((margin, y_date), TODAY_TR, font=font_date, fill="black")
 
-        img.save(f"{OUTPUT_DIR}/{i:02d}_{burc}.png")
+        filename = f"{i:02d}_{burc}.png"
+        img.save(f"{OUTPUT_DIR}/{filename}")
+        upload_to_r2(filename)
 
+
+# -----------------------------------------------------
+#  FASTAPI
+# -----------------------------------------------------
 app = FastAPI()
 
 @app.get("/generate")
 def generate_all():
-    """
-    n8n bu URL'ye istek atacak.
-    Senin Python kodun da görselleri oluşturacak.
-    """
     create_cover()
     create_pages()
 

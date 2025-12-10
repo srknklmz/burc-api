@@ -3,3 +3,4 @@ uvicorn[standard]
 pillow
 requests
 urllib3
+boto3
