@@ -7,61 +7,16 @@ import datetime
 from io import BytesIO
 import urllib3
 import time
-urllib3.disable_warnings()
 import boto3
 from botocore.client import Config
 from threading import Thread
 
-@app.get("/generate-fast")
-def generate_fast():
-    """
-    n8n bu HTTP'yi çağıracak.
-    İşlem arkada çalışacak → n8n timeout olmaz.
-    """
-    def background_job():
-        create_cover()
-        create_pages()
-    t = Thread(target=background_job)
-    t.start()
-
-    return {"status": "started", "message": "Generation started in background"}
-
-R2_ACCESS_KEY = "b3be6f386ed30c55f201dd52bed49ce3"
-R2_SECRET_KEY = "66b0328150576a04aca10be192bd72b3e0c449895bf657ae94aae80ccaf6233db"
-R2_BUCKET = "burclar"
-R2_ENDPOINT = "https://c316fd7fb9f1a40d8aa2578d27d579a2.r2.cloudflarestorage.com"
-
-s3 = boto3.client(
-    "s3",
-    region_name="auto",
-    endpoint_url=f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
-    aws_access_key_id=R2_ACCESS_KEY,
-    aws_secret_access_key=R2_SECRET_KEY,
-)
-
+urllib3.disable_warnings()
 
 # -----------------------------------------------------
-#  Cloudflare R2 Görsel İndirme
+# FASTAPI APP (en üstte olsun ki decorator'lar hata vermesin)
 # -----------------------------------------------------
-def fetch_image(url):
-    try:
-        r = requests.get(url, verify=False, timeout=10)
-        r.raise_for_status()
-        return Image.open(BytesIO(r.content)).convert("RGB")
-    except Exception as e:
-        print("❌ Görsel indirilemedi:", url, e)
-        return Image.new("RGB", (WIDTH, HEIGHT), (255, 255, 255))
-
-def upload_to_r2(filename):
-    file_path = f"output/{filename}"
-
-    s3.upload_file(
-        Filename=file_path,
-        Bucket=R2_BUCKET,
-        Key=filename
-    )
-
-    return f"https://pub-f937c062aeba4e4a9fa8b23dbb4f0275.r2.dev/{filename}"
+app = FastAPI()
 
 # -----------------------------------------------------
 #  GENEL AYARLAR
@@ -81,25 +36,66 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 GROQ_MODEL = "llama-3.3-70b-versatile"
 
 IMAGE_MAP = {
-    1:"https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/1.jpg",
-    2:"https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/2.jpg",
-    3:"https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/3.jpg",
-    4:"https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/4.jpg",
-    5:"https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/5.jpg",
-    6:"https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/6.jpg",
-    7:"https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/7.jpg",
-    8:"https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/8.jpg",
-    9:"https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/9.jpg",
-    10:"https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/10.jpg",
-    11:"https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/11.jpg",
-    12:"https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/12.jpg",
-    13:"https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/13.jpg"
+    1: "https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/1.jpg",
+    2: "https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/2.jpg",
+    3: "https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/3.jpg",
+    4: "https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/4.jpg",
+    5: "https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/5.jpg",
+    6: "https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/6.jpg",
+    7: "https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/7.jpg",
+    8: "https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/8.jpg",
+    9: "https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/9.jpg",
+    10: "https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/10.jpg",
+    11: "https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/11.jpg",
+    12: "https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/12.jpg",
+    13: "https://raw.githubusercontent.com/srknklmz/burc-gorselleri/main/13.jpg",
 }
 
 burc_listesi = [
-    "Koç","Boğa","İkizler","Yengeç","Aslan","Başak",
-    "Terazi","Akrep","Yay","Oğlak","Kova","Balık"
+    "Koç", "Boğa", "İkizler", "Yengeç", "Aslan", "Başak",
+    "Terazi", "Akrep", "Yay", "Oğlak", "Kova", "Balık"
 ]
+
+# -----------------------------------------------------
+#  CLOUDFLARE R2 AYARLARI
+#   (Access / Secret KEY’LERİ Railway ENV’e koy, burada os.environ'dan çek)
+# -----------------------------------------------------
+R2_ACCOUNT_ID = "c316fd7fb9f1a40d8aa2578d27d579a2"   # S3 API URL’deki id
+R2_BUCKET = "burclar"
+
+# S3 API ekranındaki URL'den sadece DOMAIN kısmı:
+# https://c316fd7fb9f1a40d8aa2578d27d579a2.r2.cloudflarestorage.com/burclar
+#  --> endpoint_url = https://c316fd7fb9f1a40d8aa2578d27d579a2.r2.cloudflarestorage.com
+R2_ENDPOINT = f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
+
+R2_ACCESS_KEY = os.environ.get("R2_ACCESS_KEY")
+R2_SECRET_KEY = os.environ.get("R2_SECRET_KEY")
+
+s3 = boto3.client(
+    "s3",
+    endpoint_url=R2_ENDPOINT,
+    aws_access_key_id=R2_ACCESS_KEY,
+    aws_secret_access_key=R2_SECRET_KEY,
+    config=Config(signature_version="s3v4"),
+)
+
+def upload_to_r2(filename: str) -> None:
+    """OUTPUT klasöründeki dosyayı R2'ye yükler."""
+    file_path = os.path.join(OUTPUT_DIR, filename)
+    s3.upload_file(file_path, R2_BUCKET, filename)
+    print("✓ Upload:", filename)
+
+# -----------------------------------------------------
+#  Cloudflare R2 Görsel İndirme
+# -----------------------------------------------------
+def fetch_image(url):
+    try:
+        r = requests.get(url, verify=False, timeout=10)
+        r.raise_for_status()
+        return Image.open(BytesIO(r.content)).convert("RGB")
+    except Exception as e:
+        print("❌ Görsel indirilemedi:", url, e)
+        return Image.new("RGB", (WIDTH, HEIGHT), (255, 255, 255))
 
 
 # -----------------------------------------------------
@@ -231,9 +227,9 @@ METİN:
 #  TARİH
 # -----------------------------------------------------
 TURKISH_MONTHS = {
-    "January":"Ocak","February":"Şubat","March":"Mart","April":"Nisan",
-    "May":"Mayıs","June":"Haziran","July":"Temmuz","August":"Ağustos",
-    "September":"Eylül","October":"Ekim","November":"Kasım","December":"Aralık"
+    "January": "Ocak", "February": "Şubat", "March": "Mart", "April": "Nisan",
+    "May": "Mayıs", "June": "Haziran", "July": "Temmuz", "August": "Ağustos",
+    "September": "Eylül", "October": "Ekim", "November": "Kasım", "December": "Aralık"
 }
 
 def get_turkish_today():
@@ -267,7 +263,7 @@ def create_cover():
     y_title = 140
     x_title = (WIDTH - w_title) // 2
 
-    for dx, dy in [(-1,0),(1,0),(0,-1),(0,1),(0,0)]:
+    for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1), (0, 0)]:
         draw.text((x_title + dx, y_title + dy), title, font=font_title, fill="black")
 
     font_date = ImageFont.truetype(FONT_PATH, FONT_BODY)
@@ -281,20 +277,11 @@ def create_cover():
 
 
 # -----------------------------------------------------
-#  Cloudflare R2 Yükleme Fonksiyonu
-# -----------------------------------------------------
-def upload_to_r2(filename):
-    file_path = os.path.join(OUTPUT_DIR, filename)
-    s3.upload_file(file_path, R2_BUCKET, filename)
-    print("✓ Upload:", filename)
-
-
-# -----------------------------------------------------
 #  BURÇ SAYFALARI
 # -----------------------------------------------------
 def create_pages():
     for i, burc in enumerate(burc_listesi, start=1):
-        img = fetch_image(IMAGE_MAP[i+1])
+        img = fetch_image(IMAGE_MAP[i + 1])
         yorum = get_horoscope(burc)
 
         draw_justified_page(img, burc, yorum)
@@ -311,19 +298,23 @@ def create_pages():
 
 
 # -----------------------------------------------------
-#  FASTAPI
+#  ENDPOINTLER
 # -----------------------------------------------------
-app = FastAPI()
-
 @app.get("/generate")
 def generate_all():
     create_cover()
     create_pages()
 
     files = sorted(os.listdir(OUTPUT_DIR))
+    return JSONResponse({"status": "ok", "date": TODAY_TR, "files": files})
 
-    return JSONResponse({
-        "status": "ok",
-        "date": TODAY_TR,
-        "files": files
-    })
+
+@app.get("/generate-fast")
+def generate_fast():
+    """İşlemi arka planda başlatır (n8n timeout yemez)."""
+    def background_job():
+        create_cover()
+        create_pages()
+
+    Thread(target=background_job).start()
+    return {"status": "started", "message": "Generation started in background"}
