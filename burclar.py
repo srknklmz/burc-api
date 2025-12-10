@@ -56,28 +56,16 @@ burc_listesi = [
     "Terazi", "Akrep", "Yay", "Oğlak", "Kova", "Balık"
 ]
 
-# -----------------------------------------------------
-#  CLOUDFLARE R2 AYARLARI
-#   (Access / Secret KEY’LERİ Railway ENV’e koy, burada os.environ'dan çek)
-# -----------------------------------------------------
-R2_ACCOUNT_ID = "c316fd7fb9f1a40d8aa2578d27d579a2"   # S3 API URL’deki id
-R2_BUCKET = "burclar"
-R2_ACCOUNT_ID = "c316fd7fb9f1a40d8aa2578d27d579a2"
-
-# S3 API ekranındaki URL'den sadece DOMAIN kısmı:
-# https://c316fd7fb9f1a40d8aa2578d27d579a2.r2.cloudflarestorage.com/burclar
-#  --> endpoint_url = https://c316fd7fb9f1a40d8aa2578d27d579a2.r2.cloudflarestorage.com
-R2_ENDPOINT = f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-R2_ACCESS_KEY = os.environ.get("R2_ACCESS_KEY")
-R2_SECRET_KEY = os.environ.get("R2_SECRET_KEY")
+R2_ACCESS_KEY = os.getenv("R2_ACCESS_KEY")
+R2_SECRET_KEY = os.getenv("R2_SECRET_KEY")
+R2_ACCOUNT_ID = os.getenv("R2_ACCOUNT_ID")
 
 s3 = boto3.client(
     "s3",
-    region_name="auto",
     endpoint_url=f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
     aws_access_key_id=R2_ACCESS_KEY,
     aws_secret_access_key=R2_SECRET_KEY,
-    config=Config(signature_version="s3v4")
+    config=Config(signature_version="s3v4"),
 )
 
 def upload_to_r2(filename: str) -> None:
