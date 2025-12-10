@@ -4,3 +4,4 @@ pillow
 requests
 urllib3
 boto3
+botocore
