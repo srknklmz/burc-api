@@ -59,6 +59,7 @@ burc_listesi = [
 R2_ACCESS_KEY = os.getenv("R2_ACCESS_KEY")
 R2_SECRET_KEY = os.getenv("R2_SECRET_KEY")
 R2_ACCOUNT_ID = os.getenv("R2_ACCOUNT_ID")
+R2_BUCKET = "burclar"
 
 s3 = boto3.client(
     "s3",
