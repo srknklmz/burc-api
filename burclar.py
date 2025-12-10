@@ -56,28 +56,33 @@ burc_listesi = [
     "Terazi", "Akrep", "Yay", "Oğlak", "Kova", "Balık"
 ]
 
-R2_ACCESS_KEY = os.getenv("R2_ACCESS_KEY")
-R2_SECRET_KEY = os.getenv("R2_SECRET_KEY")
-R2_ACCOUNT_ID = os.getenv("R2_ACCOUNT_ID")
-R2_BUCKET = "burclar"
+R2_ACCESS_KEY = os.getenv("R2_ACCESS_KEY_ID")
+R2_SECRET_KEY = os.getenv("R2_SECRET_ACCESS_KEY")
+R2_BUCKET = os.getenv("R2_BUCKET_NAME")
+R2_ENDPOINT = os.getenv("R2_ENDPOINT_URL")   # FULL endpoint URL
+R2_REGION = os.getenv("R2_REGION", "auto")
 
 s3 = boto3.client(
     "s3",
-    endpoint_url=f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
+    region_name=R2_REGION,
+    endpoint_url=R2_ENDPOINT,
     aws_access_key_id=R2_ACCESS_KEY,
     aws_secret_access_key=R2_SECRET_KEY,
-    config=Config(signature_version="s3v4"),
+    config=Config(signature_version="s3v4")
 )
 
-def upload_to_r2(filename: str) -> None:
-    """OUTPUT klasöründeki dosyayı R2'ye yükler."""
+def upload_to_r2(filename):
     file_path = os.path.join(OUTPUT_DIR, filename)
-    s3.upload_file(file_path, R2_BUCKET, filename)
+
+    s3.upload_file(
+        Filename=file_path,
+        Bucket=R2_BUCKET,
+        Key=filename
+    )
+
     print("✓ Upload:", filename)
 
-# -----------------------------------------------------
-#  Cloudflare R2 Görsel İndirme
-# -----------------------------------------------------
+    
 def fetch_image(url):
     try:
         r = requests.get(url, verify=False, timeout=10)
